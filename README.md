@@ -1,4 +1,4 @@
-# deform_conv_pytorch
+# Deformable Convolutional Network
 
 ## Statement
 - The **main.py** from [MorvanZhou](https://github.com/MorvanZhou/PyTorch-Tutorial/blob/master/tutorial-contents/401_CNN.py),  and I change some code. His videos help me a lot, thank him!  
