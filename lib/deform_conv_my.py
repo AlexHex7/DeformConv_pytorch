@@ -1,4 +1,5 @@
-# There is something wrong in it.
+# This transform the tensorflow version of https://github.com/maestrojeong/deformable_convnet
+# But there is something wrong in my code.
 
 import torch
 from torch import nn

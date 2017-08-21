@@ -1,3 +1,6 @@
+# This code is come from MorvanZhou, thank him! And I change some code.
+# https://github.com/MorvanZhou/PyTorch-Tutorial/blob/master/tutorial-contents/401_CNN.py
+
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
