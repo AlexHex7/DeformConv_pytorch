@@ -39,12 +39,16 @@ class ConvOffset2D(nn.Conv2d):
     def forward(self, x):
         """Return the deformed featured map"""
         x_shape = x.size()
+
         # (b, c, h, w)
         offsets = super(ConvOffset2D, self).forward(x)
+
         # (b*c, h, w, 2)
         offsets = self._to_bc_h_w_2(offsets, x_shape)
+
         # (b*c, h, w)
         x = self._to_bc_h_w(x, x_shape)
+
         # X_offset: (b*c, h*w)    grid:(b*c, h*w, 2)
         x_offset = th_batch_map_offsets(x, offsets, grid=self._get_grid(self, x))
         # x_offset: (b, c, h, w)
@@ -53,7 +57,7 @@ class ConvOffset2D(nn.Conv2d):
 
     @staticmethod
     def _get_grid(self, x):
-        batch_size, input_size = x.size(0), x.size(1)
+        batch_size, input_size = x.size(0), (x.size(1), x.size(2))
         dtype, cuda = x.data.type(), x.data.is_cuda
         if self._grid_param == (batch_size, input_size, dtype, cuda):
             return self._grid
@@ -108,7 +112,7 @@ def np_repeat_2d(a, repeats):
 
 
 def th_gather_2d(input, coords):
-    inds = coords[:, 0]*input.size(1) + coords[:, 1]
+    inds = coords[:, 0] * input.size(1) + coords[:, 1]
     x = torch.index_select(th_flatten(input), 0, inds)
     return x.view(coords.size(0))
 
@@ -131,10 +135,10 @@ def th_map_coordinates(input, coords, order=1):
     coords_lb = torch.stack([coords_lt[:, 0], coords_rb[:, 1]], 1)
     coords_rt = torch.stack([coords_rb[:, 0], coords_lt[:, 1]], 1)
 
-    vals_lt = th_gather_2d(input,  coords_lt.detach())
-    vals_rb = th_gather_2d(input,  coords_rb.detach())
-    vals_lb = th_gather_2d(input,  coords_lb.detach())
-    vals_rt = th_gather_2d(input,  coords_rt.detach())
+    vals_lt = th_gather_2d(input, coords_lt.detach())
+    vals_rb = th_gather_2d(input, coords_rb.detach())
+    vals_lb = th_gather_2d(input, coords_lb.detach())
+    vals_rt = th_gather_2d(input, coords_rt.detach())
 
     coords_offset_lt = coords - coords_lt.type(coords.data.type())
 
@@ -178,26 +182,26 @@ def th_batch_map_coordinates(input, coords, order=1):
     idx = th_repeat(torch.arange(0, batch_size), n_coords).long()
     idx = Variable(idx, requires_grad=False)
     if input.is_cuda:
-        idx = idx.cuda(cfg.cuda_num)
+        idx = idx.cuda(cfg.cuda_number)
 
     def _get_vals_by_coords(input, coords):
         indices = torch.stack([
             idx, th_flatten(coords[..., 0]), th_flatten(coords[..., 1])
         ], 1)
-        inds = indices[:, 0]*input.size(1)*input.size(2)+ indices[:, 1]*input.size(2) + indices[:, 2]
+        inds = indices[:, 0] * input.size(1) * input.size(2) + indices[:, 1] * input.size(2) + indices[:, 2]
         vals = th_flatten(input).index_select(0, inds)
         vals = vals.view(batch_size, n_coords)
         return vals
-    
+
     vals_lt = _get_vals_by_coords(input, coords_lt.detach())
     vals_rb = _get_vals_by_coords(input, coords_rb.detach())
     vals_lb = _get_vals_by_coords(input, coords_lb.detach())
     vals_rt = _get_vals_by_coords(input, coords_rt.detach())
 
     coords_offset_lt = coords - coords_lt.type(coords.data.type())
-    vals_t = coords_offset_lt[..., 0]*(vals_rt - vals_lt) + vals_lt
-    vals_b = coords_offset_lt[..., 0]*(vals_rb - vals_lb) + vals_lb
-    mapped_vals = coords_offset_lt[..., 1]* (vals_b - vals_t) + vals_t
+    vals_t = coords_offset_lt[..., 0] * (vals_rt - vals_lt) + vals_lt
+    vals_b = coords_offset_lt[..., 0] * (vals_rb - vals_lb) + vals_lb
+    mapped_vals = coords_offset_lt[..., 1] * (vals_b - vals_t) + vals_t
     return mapped_vals
 
 
@@ -219,7 +223,7 @@ def sp_batch_map_offsets(input, offsets):
 
 def th_generate_grid(batch_size, input_size, dtype, cuda):
     grid = np.meshgrid(
-        range(input_size), range(input_size), indexing='ij'
+        range(input_size[0]), range(input_size[1]), indexing='ij'
     )
     grid = np.stack(grid, axis=-1)
     grid = grid.reshape(-1, 2)
@@ -227,7 +231,7 @@ def th_generate_grid(batch_size, input_size, dtype, cuda):
     grid = np_repeat_2d(grid, batch_size)
     grid = torch.from_numpy(grid).type(dtype)
     if cuda:
-        grid = grid.cuda(cfg.cuda_num)
+        grid = grid.cuda(cfg.cuda_number)
     return Variable(grid, requires_grad=False)
 
 
@@ -243,7 +247,7 @@ def th_batch_map_offsets(input, offsets, grid=None, order=1):
     torch.Tensor. shape = (b, s, s)
     """
     batch_size = input.size(0)
-    input_size = input.size(1)
+    input_size = [input.size(1), input.size(2)]
 
     # (b, h*w, 2)
     offsets = offsets.view(batch_size, -1, 2)
